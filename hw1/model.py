@@ -73,8 +73,13 @@ def featurize(sentence: str, embeddings: gensim.models.keyedvectors.KeyedVectors
     # None - if the vector sequence is empty, i.e. the sentence is empty or None of the words in the sentence is in the embedding vocabulary
     # A torch tensor of shape (embed_dim,) - the average word embedding of the sentence
     # Hint: follow the hints in the pdf description
-
-
+    if vectors == []:
+        return None
+    else:
+        before_avg_features = torch.from_numpy(np.array(vectors,dtype=np.float32))
+        features = torch.mean(before_avg_features, dim = 0)
+        return features
+    
 def create_tensor_dataset(raw_data: Dict[str, List[Union[int, str]]],
                           embeddings: gensim.models.keyedvectors.KeyedVectors) -> TensorDataset:
     all_features, all_labels = [], []
@@ -82,6 +87,10 @@ def create_tensor_dataset(raw_data: Dict[str, List[Union[int, str]]],
 
         # TODO: complete the for loop to featurize each sentence
         # only add the feature and label to the list if the feature is not None
+        feature = featurize(text, embeddings=embeddings)
+        if feature is not None:
+            all_features.append(feature)
+            all_labels.append(label)
 
         # your code ends here
 
@@ -114,7 +123,7 @@ class SentimentClassifier(nn.Module):
 
         # TODO: define the linear layer
         # Hint: follow the hints in the pdf description
-
+        self.linear = nn.Linear(self.embed_dim, self.num_classes)
         # your code ends here
 
         self.loss = nn.CrossEntropyLoss(reduction='mean')
@@ -122,7 +131,7 @@ class SentimentClassifier(nn.Module):
     def forward(self, inp):
         # TODO: complete the forward function
         # Hint: follow the hints in the pdf description
-
+        logits = self.linear(inp)
         # your code ends here
 
         return logits
@@ -139,8 +148,9 @@ def accuracy(logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.Float
     # Hint: follow the hints in the pdf description, the return should be a tensor of 0s and 1s with the same shape as labels
     # labels is a tensor of shape (batch_size,)
     # logits is a tensor of shape (batch_size, num_classes)
-
-    return ...
+    preds = torch.argmax(logits, 1)
+    acc = ((preds == labels).sum()/logits.shape[0])
+    return acc
 
 
 def evaluate(model: SentimentClassifier, eval_dataloader: DataLoader) -> Tuple[float, float]:
@@ -154,7 +164,7 @@ def evaluate(model: SentimentClassifier, eval_dataloader: DataLoader) -> Tuple[f
         # loss and accuracy computation
         loss = model.loss(logits, labels)
         eval_losses.append(loss.item())
-        eval_accs += accuracy(logits, labels).tolist()
+        eval_accs.append(accuracy(logits, labels).item())
 
     eval_loss, eval_acc = np.array(eval_losses).mean(), np.array(eval_accs).mean()
     print(f"Eval Loss: {eval_loss} Eval Acc: {eval_acc}")
@@ -192,7 +202,7 @@ def train(model: SentimentClassifier,
             optimizer.step()
             # record the loss and accuracy
             train_losses.append(loss.item())
-            train_accs += accuracy(logits, labels).tolist()
+            train_accs.append(accuracy(logits, labels).item())
 
         all_epoch_train_losses.append(np.array(train_losses).mean())
         all_epoch_train_accs.append(np.array(train_accs).mean())
